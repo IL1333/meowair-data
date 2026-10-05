@@ -12,9 +12,9 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-	 ○  uses: actions/checkout@v4
+      uses: actions/checkout@v4
 
-	 ○  name: Fetch global flight data
+      name: Fetch global flight data
         run: |
           python3 << 'PYEOF'
           import json, urllib.request, datetime, time
@@ -55,7 +55,7 @@ jobs:
           print(f'saved {len(ac_list)} aircraft')
           PYEOF
 
-	 ○  name: Commit and push
+      name: Commit and push
         run: |
           git config user.name "meowair-bot"
           git config user.email "meowair-bot@1333lab.com"
