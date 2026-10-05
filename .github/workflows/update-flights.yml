@@ -57,8 +57,12 @@ jobs:
                           'airline': fr.get('airline', {}).get('name', ''),
                           'origin': org.get('municipality', '') or org.get('name', ''),
                           'origin_iata': org.get('iata_code', ''),
+                          'origin_lat': org.get('latitude'),
+                          'origin_lon': org.get('longitude'),
                           'dest': dst.get('municipality', '') or dst.get('name', ''),
                           'dest_iata': dst.get('iata_code', ''),
+                          'dest_lat': dst.get('latitude'),
+                          'dest_lon': dst.get('longitude'),
                       }
                   time.sleep(0.3)
               except Exception as e:
