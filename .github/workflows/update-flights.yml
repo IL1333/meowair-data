@@ -2,7 +2,7 @@ name: Update flight data
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+	 ○  cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -12,74 +12,50 @@ jobs:
   update:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+	 ○  uses: actions/checkout@v4
 
-      - name: Fetch flight data + routes
+	 ○  name: Fetch global flight data
         run: |
           python3 << 'PYEOF'
           import json, urllib.request, datetime, time
 
-          # 1. 抓航班位置
-          sources = [
-              'https://api.adsb.lol/v2/point/22.32/114.17/150',
-              'https://opendata.adsb.fi/api/v2/lat/22.32/lon/114.17/dist/150',
+          POINTS = [
+              (22.32, 114.17), (35.55, 139.78), (31.14, 121.81), (37.47, 126.45),
+              (1.36, 103.99), (25.25, 55.36), (51.47, -0.45), (49.01, 2.55),
+              (50.03, 8.56), (40.64, -73.78), (33.94, -118.41), (41.97, -87.91),
+              (-33.95, 151.18), (-23.43, -46.47), (30.12, 31.41), (28.57, 77.10),
           ]
-          ac = []
-          src = 'none'
-          for i, url in enumerate(sources):
-              try:
-                  req = urllib.request.Request(url, headers={'User-Agent': 'MeowAir/1.0'})
-                  with urllib.request.urlopen(req, timeout=30) as r:
-                      d = json.loads(r.read())
-                  ac = d.get('ac') or d.get('aircraft') or []
-                  src = 'adsb.lol' if i == 0 else 'adsb.fi'
-                  break
-              except Exception as e:
-                  print(f'source {i} failed: {e}')
 
-          # 2. 幫每班機查路線（adsbdb.com）
-          for a in ac:
-              cs = (a.get('flight') or '').strip()
-              if not cs:
-                  continue
-              try:
-                  req = urllib.request.Request(
-                      f'https://api.adsbdb.com/v0/callsign/{cs}',
-                      headers={'User-Agent': 'MeowAir/1.0'}
-                  )
-                  with urllib.request.urlopen(req, timeout=15) as r:
-                      rd = json.loads(r.read())
-                  fr = rd.get('response', {}).get('flightroute', {})
-                  if fr:
-                      org = fr.get('origin', {})
-                      dst = fr.get('destination', {})
-                      a['route'] = {
-                          'airline': fr.get('airline', {}).get('name', ''),
-                          'origin': org.get('municipality', '') or org.get('name', ''),
-                          'origin_iata': org.get('iata_code', ''),
-                          'origin_lat': org.get('latitude'),
-                          'origin_lon': org.get('longitude'),
-                          'dest': dst.get('municipality', '') or dst.get('name', ''),
-                          'dest_iata': dst.get('iata_code', ''),
-                          'dest_lat': dst.get('latitude'),
-                          'dest_lon': dst.get('longitude'),
-                      }
-                  time.sleep(0.3)
-              except Exception as e:
-                  continue
+          all_ac = {}
+          for lat, lon in POINTS:
+              for attempt in range(2):
+                  try:
+                      req = urllib.request.Request(
+                          f'https://api.adsb.lol/v2/point/{lat}/{lon}/250',
+                          headers={'User-Agent': 'MeowAir/1.0'})
+                      with urllib.request.urlopen(req, timeout=25) as r:
+                          d = json.loads(r.read())
+                      for a in d.get('ac', []):
+                          if a.get('hex') and a.get('lat') and a.get('lon'):
+                              all_ac[a['hex']] = a
+                      break
+                  except Exception as e:
+                      print(f'({lat},{lon}) attempt {attempt+1}: {e}')
+                      time.sleep(2)
+              time.sleep(1)
 
+          ac_list = list(all_ac.values())[:800]
           out = {
               'updated': datetime.datetime.now(datetime.timezone.utc).isoformat(),
-              'source': src,
-              'ac': ac,
+              'source': 'adsb.lol',
+              'ac': ac_list,
           }
           with open('flights.json', 'w') as f:
               json.dump(out, f)
-          routed = sum(1 for a in ac if a.get('route'))
-          print(f'saved {len(ac)} aircraft from {src}, {routed} with routes')
+          print(f'saved {len(ac_list)} aircraft')
           PYEOF
 
-      - name: Commit and push
+	 ○  name: Commit and push
         run: |
           git config user.name "meowair-bot"
           git config user.email "meowair-bot@1333lab.com"
