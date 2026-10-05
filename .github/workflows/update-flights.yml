@@ -14,11 +14,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch flight data
+      - name: Fetch flight data + routes
         run: |
           python3 << 'PYEOF'
-          import json, urllib.request, datetime
+          import json, urllib.request, datetime, time
 
+          # 1. 抓航班位置
           sources = [
               'https://api.adsb.lol/v2/point/22.32/114.17/150',
               'https://opendata.adsb.fi/api/v2/lat/22.32/lon/114.17/dist/150',
@@ -36,6 +37,33 @@ jobs:
               except Exception as e:
                   print(f'source {i} failed: {e}')
 
+          # 2. 幫每班機查路線（adsbdb.com）
+          for a in ac:
+              cs = (a.get('flight') or '').strip()
+              if not cs:
+                  continue
+              try:
+                  req = urllib.request.Request(
+                      f'https://api.adsbdb.com/v0/callsign/{cs}',
+                      headers={'User-Agent': 'MeowAir/1.0'}
+                  )
+                  with urllib.request.urlopen(req, timeout=15) as r:
+                      rd = json.loads(r.read())
+                  fr = rd.get('response', {}).get('flightroute', {})
+                  if fr:
+                      org = fr.get('origin', {})
+                      dst = fr.get('destination', {})
+                      a['route'] = {
+                          'airline': fr.get('airline', {}).get('name', ''),
+                          'origin': org.get('municipality', '') or org.get('name', ''),
+                          'origin_iata': org.get('iata_code', ''),
+                          'dest': dst.get('municipality', '') or dst.get('name', ''),
+                          'dest_iata': dst.get('iata_code', ''),
+                      }
+                  time.sleep(0.3)
+              except Exception as e:
+                  continue
+
           out = {
               'updated': datetime.datetime.now(datetime.timezone.utc).isoformat(),
               'source': src,
@@ -43,7 +71,8 @@ jobs:
           }
           with open('flights.json', 'w') as f:
               json.dump(out, f)
-          print(f'saved {len(ac)} aircraft from {src}')
+          routed = sum(1 for a in ac if a.get('route'))
+          print(f'saved {len(ac)} aircraft from {src}, {routed} with routes')
           PYEOF
 
       - name: Commit and push
