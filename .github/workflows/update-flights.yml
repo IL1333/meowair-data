@@ -2,7 +2,7 @@ name: Update flight data
 
 on:
   schedule:
-      cron: '*/10 * * * *'
+    - cron: '*/10 * * * *'
   workflow_dispatch:
 
 permissions:
@@ -55,9 +55,10 @@ jobs:
           print(f'saved {len(ac_list)} aircraft')
           PYEOF
 
-      name: Commit and push
+      - name: Commit and push
         run: |
           git config user.name "meowair-bot"
           git config user.email "meowair-bot@1333lab.com"
           git add flights.json
           git diff --staged --quiet || (git commit -m "Update flight data" && git push)
+
