@@ -61,4 +61,3 @@ jobs:
           git config user.email "meowair-bot@1333lab.com"
           git add flights.json
           git diff --staged --quiet || (git commit -m "Update flight data" && git push)
-
