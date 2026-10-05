@@ -1,0 +1,54 @@
+name: Update flight data
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch flight data
+        run: |
+          python3 << 'PYEOF'
+          import json, urllib.request, datetime
+
+          sources = [
+              'https://api.adsb.lol/v2/point/22.32/114.17/150',
+              'https://opendata.adsb.fi/api/v2/lat/22.32/lon/114.17/dist/150',
+          ]
+          ac = []
+          src = 'none'
+          for i, url in enumerate(sources):
+              try:
+                  req = urllib.request.Request(url, headers={'User-Agent': 'MeowAir/1.0'})
+                  with urllib.request.urlopen(req, timeout=30) as r:
+                      d = json.loads(r.read())
+                  ac = d.get('ac') or d.get('aircraft') or []
+                  src = 'adsb.lol' if i == 0 else 'adsb.fi'
+                  break
+              except Exception as e:
+                  print(f'source {i} failed: {e}')
+
+          out = {
+              'updated': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+              'source': src,
+              'ac': ac,
+          }
+          with open('flights.json', 'w') as f:
+              json.dump(out, f)
+          print(f'saved {len(ac)} aircraft from {src}')
+          PYEOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "meowair-bot"
+          git config user.email "meowair-bot@1333lab.com"
+          git add flights.json
+          git diff --staged --quiet || (git commit -m "Update flight data" && git push)
